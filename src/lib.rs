@@ -34,7 +34,7 @@ pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
     }
     
     let density = vec!["Ñ","@","#","W", "$", "9", "8", "7", "6", "5", "4", "3", "2", "1", "0", "?", "!", "a", "b", "c", ";", ":", "+", "=", "-", ",", ".", "_", " ", " ", " ", " "," "," "," "," "," "];
-    let gray_image = ImageReader::open(&config.input_path).expect("Image not found.").decode()?.resize(512, 512, FilterType::Gaussian).grayscale().clone().into_luma8();    
+    let gray_image = ImageReader::open(&config.input_path).expect("Image not found.").decode()?.resize(256, 256, FilterType::Gaussian).grayscale().clone().into_luma8();    
     println!("Opened {}.",&config.input_path);
 
     let (width, height) = (gray_image.width(), gray_image.height());
