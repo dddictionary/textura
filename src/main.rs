@@ -1,18 +1,18 @@
-use std::{env, process, io, thread, time::Duration};
+use std::{env, process};
 use ascii_rs::Config;
 
-use tui::{
-    backend::CrosstermBackend,
-    widgets::{Widget, Block, Borders},
-    layout::{Layout, Constraint, Direction},
-    Terminal
-};
+// use tui::{
+//     backend::CrosstermBackend,
+//     widgets::{Widget, Block, Borders},
+//     layout::{Layout, Constraint, Direction},
+//     Terminal
+// };
 
-use crossterm::{
-    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
-    execute,
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
-};
+// use crossterm::{
+//     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
+//     execute,
+//     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+// };
 
 // use nokhwa::{
 //     nokhwa_initialize,
@@ -23,49 +23,49 @@ use crossterm::{
 // };
 
 
-fn tui_stuff() -> Result<(), io::Error> {
-    enable_raw_mode()?;
-    let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
-    let backend = CrosstermBackend::new(stdout);
-    let mut terminal = Terminal::new(backend)?;
+// fn tui_stuff() -> Result<(), io::Error> {
+//     enable_raw_mode()?;
+//     let mut stdout = io::stdout();
+//     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
+//     let backend = CrosstermBackend::new(stdout);
+//     let mut terminal = Terminal::new(backend)?;
 
-    terminal.draw(|f| {
-        let size = f.size();
-        let block = Block::default()
-            .title("Block")
-            .borders(Borders::ALL);
-        f.render_widget(block, size);
-    })?;
+//     terminal.draw(|f| {
+//         let size = f.size();
+//         let block = Block::default()
+//             .title("Block")
+//             .borders(Borders::ALL);
+//         f.render_widget(block, size);
+//     })?;
 
-    thread::sleep(Duration::from_millis(5000));
+//     thread::sleep(Duration::from_millis(5000));
 
-    // restore terminal
-    disable_raw_mode()?;
-    execute!(
-        terminal.backend_mut(),
-        LeaveAlternateScreen,
-        DisableMouseCapture
-    )?;
-    terminal.show_cursor()?;
+//     // restore terminal
+//     disable_raw_mode()?;
+//     execute!(
+//         terminal.backend_mut(),
+//         LeaveAlternateScreen,
+//         DisableMouseCapture
+//     )?;
+//     terminal.show_cursor()?;
 
-    Ok(())
-}
+//     Ok(())
+// }
 
 fn main() {
-    // let args: Vec<String> = env::args().collect();
+    let args: Vec<String> = env::args().collect();
 
-    // let config = Config::build(&args).unwrap_or_else(|err| {
-    //     eprintln!("Error occurred: {err}");
-    //     process::exit(1);
-    // });
+    let config = Config::build(&args).unwrap_or_else(|err| {
+        eprintln!("Error occurred: {err}");
+        process::exit(1);
+    });
 
-    // if let Err(e) = ascii_rs::run(config) {
-    //     eprintln!("Application error: {e}");
-    //     process::exit(1)
-    // }
+    if let Err(e) = ascii_rs::run(config) {
+        eprintln!("Application error: {e}");
+        process::exit(1)
+    }
 
-    tui_stuff().unwrap();
+    // tui_stuff().unwrap();
     // let format = RequestedFormat::new::<RgbFormat>(RequestedFormatType::AbsoluteHighestFrameRate);
 
     // let camera_index = CameraIndex::Index(0);
