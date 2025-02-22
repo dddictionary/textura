@@ -4,19 +4,19 @@ use std::path::Path;
 use image::io::Reader as ImageReader;
 use image::imageops::FilterType;
 
-pub struct Config {
+pub struct AsciiConverter {
     pub input_path: String,
     pub output_path: String,
 }
 
-impl Config {
-    pub fn build(args: &[String]) -> Result<Config, &'static str> {
+impl AsciiConverter {
+    pub fn build(args: &[String]) -> Result<AsciiConverter, &'static str> {
         if args.len() < 3 {
             return Err("Not enough arguments provided!\nUsage: ascii-rs [image_path] [output_path]");
         }
         let input_path = args[1].clone();
         let output_path = args[2].clone();
-        Ok(Config{
+        Ok(AsciiConverter{
             input_path,
             output_path,
         })
@@ -27,7 +27,7 @@ fn map_range(val: i32, from: (i32, i32), to: (i32, i32)) -> i32 {
     to.0 + (val-from.0) * (to.1 - to.0) / (from.1 - from.0)
 }
 
-pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
+pub fn run(config: AsciiConverter) -> Result<(), Box<dyn Error>> {
     let output_path = Path::new(&config.output_path);
     if output_path.extension().unwrap() != "txt" {
         return Err("Output file must be a .txt file.".into());

@@ -1,88 +1,46 @@
-use std::{env, process};
-use ascii_rs::Config;
+use crossterm::{event::{self, Event}, terminal::{enable_raw_mode, disable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen}, execute};
+use ratatui::{prelude::*, text::Text, Terminal};
+use clap::Parser;
+use std::{fs, io::{self, stdout}, path::PathBuf};
 
-// use tui::{
-//     backend::CrosstermBackend,
-//     widgets::{Widget, Block, Borders},
-//     layout::{Layout, Constraint, Direction},
-//     Terminal
-// };
-
-// use crossterm::{
-//     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
-//     execute,
-//     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
-// };
-
-// use nokhwa::{
-//     nokhwa_initialize,
-//     pixel_format::{RgbAFormat, RgbFormat},
-//     query,
-//     utils::{ApiBackend, RequestedFormat, RequestedFormatType, CameraIndex},
-//     Camera,
-// };
+#[derive(Parser, Debug)]
+#[command(version, about, long_about=None)]
+struct Args {
+    #[arg(short, long, value_name="FILE")]
+    path: PathBuf,
+}
 
 
-// fn tui_stuff() -> Result<(), io::Error> {
-//     enable_raw_mode()?;
-//     let mut stdout = io::stdout();
-//     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
-//     let backend = CrosstermBackend::new(stdout);
-//     let mut terminal = Terminal::new(backend)?;
+fn main() -> Result<(), Box<dyn std::error::Error>> {
 
-//     terminal.draw(|f| {
-//         let size = f.size();
-//         let block = Block::default()
-//             .title("Block")
-//             .borders(Borders::ALL);
-//         f.render_widget(block, size);
-//     })?;
+    enable_raw_mode()?;
+    let mut stdout = stdout();
+    execute!(stdout, EnterAlternateScreen)?;
+    let backend = CrosstermBackend::new(stdout);
+    let mut terminal = Terminal::new(backend)?;
 
-//     thread::sleep(Duration::from_millis(5000));
+    let args = Args::parse();
+    let text = fs::read_to_string(&args.path).unwrap_or_else(|_| "Failed to read file".to_string());
+    
+    loop {
+        terminal.draw(|frame| draw(frame, &text)).expect("failed to draw frame");
 
-//     // restore terminal
-//     disable_raw_mode()?;
-//     execute!(
-//         terminal.backend_mut(),
-//         LeaveAlternateScreen,
-//         DisableMouseCapture
-//     )?;
-//     terminal.show_cursor()?;
-
-//     Ok(())
-// }
-
-fn main() {
-    let args: Vec<String> = env::args().collect();
-
-    let config = Config::build(&args).unwrap_or_else(|err| {
-        eprintln!("Error occurred: {err}");
-        process::exit(1);
-    });
-
-    if let Err(e) = ascii_rs::run(config) {
-        eprintln!("Application error: {e}");
-        process::exit(1)
+        if matches!(event::read().expect("failed to read event"), Event::Key(_)) {
+            break;
+        }
     }
 
-    // tui_stuff().unwrap();
-    // let format = RequestedFormat::new::<RgbFormat>(RequestedFormatType::AbsoluteHighestFrameRate);
+    disable_raw_mode()?;
+    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+    terminal.show_cursor()?;
 
-    // let camera_index = CameraIndex::Index(0);
-
-    // let mut threaded = Camera::new(camera_index, format).unwrap();
-    // threaded.open_stream().unwrap();
-    // #[allow(clippy::empty_loop)] // keep it running
-    // loop {
-    //     let frame = threaded.frame().unwrap();
-    //     let image = frame.decode_image::<RgbAFormat>().unwrap();
-    //     println!(
-    //         "{}x{} {} naripoggers",
-    //         image.width(),
-    //         image.height(),
-    //         image.len()
-    //     );
-    // }
+    Ok(())
+}
 
 
+
+
+fn draw(frame: &mut Frame, words: &str) {
+    let text = Text::raw(words);
+    frame.render_widget(text, frame.area());
 }
