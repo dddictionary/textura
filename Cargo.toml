@@ -7,9 +7,8 @@ edition = "2021"
 
 [dependencies]
 clap = { version = "4.5.30", features = ["derive"] }
-crossterm = "0.26.1"
-image = "0.24.6"
 # Pinned to the 8.x line to match `ffmpeg_8` in flake.nix. The crate's major
 # version tracks FFmpeg's, so bumping one means bumping the other.
 ffmpeg-next = "8.1"
+# crossterm comes in via ratatui's re-export; no direct dependency needed.
 ratatui = "0.29.0"
