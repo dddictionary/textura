@@ -39,6 +39,40 @@ Colour mode looks better on stream, monochrome is cheaper to render. Contrast
 normalization is on by default and matters a lot for webcam footage, which is
 otherwise mid-tone dominated and reads as flat.
 
+## In the browser
+
+The core compiles to WebAssembly, so the same conversion runs on a web page
+against a webcam. Live at [4brar.me/ascii](https://4brar.me/ascii).
+
+ffmpeg is **not** part of that build — it cannot target the browser, and it does
+not need to. The browser supplies everything `source.rs` does natively:
+
+| Native | Browser |
+| --- | --- |
+| ffmpeg capture device | `getUserMedia()` |
+| swscale downscale | `canvas.drawImage()` at grid size |
+| RGB24 buffer | `getImageData()` → RGBA |
+
+Frames arrive already at one pixel per character cell, so WebAssembly only maps
+luminance to glyphs. That is why `ffmpeg-next`, `ratatui` and `clap` sit behind
+the `native` feature: turning it off is what makes a wasm32 build possible.
+
+```bash
+nix develop -c ./scripts/build-wasm.sh    # -> web/pkg/
+```
+
+Output is a ~26KB `.wasm` plus its JS loader. The bundle exports `Converter`
+(with `render`, `setPreset`, `setRamp`, `setNormalize`), `fitGrid`, and
+`presetNames`.
+
+Colour is deliberately left to the caller: the page already holds the pixel
+buffer it passed in, so reading per-cell colour there is cheaper than copying a
+second buffer back out of wasm.
+
+> **Note**
+> `wasm-bindgen` must match the `wasm-bindgen-cli` version exactly. The crate is
+> pinned in `Cargo.toml` and the CLI comes from `flake.nix`; bump them together.
+
 ## Development
 
 Requires [Nix](https://nixos.org/) with flakes enabled.
@@ -55,6 +89,23 @@ building.
 
 `ffmpeg-next`'s major version tracks FFmpeg's own, so the crate and the pinned
 `ffmpeg_8` in `flake.nix` must be bumped together.
+
+### Features
+
+| Feature | Default | Pulls in |
+| --- | --- | --- |
+| `native` | yes | `ffmpeg-next`, `ratatui`, `clap` — decoding, TUI, CLI |
+
+`--no-default-features` leaves only `ascii` and `layout`, the portable core with
+no I/O. That is what the wasm build uses; the `textura` binary declares
+`required-features = ["native"]` so cargo skips it automatically.
+
+### Known gaps
+
+- The v4l2 (Linux) and dshow (Windows) camera paths compile but have never been
+  run. The frame-rate and capture-size defaults are macOS-specific and Linux
+  will likely want its own.
+- The interactive TUI loop is not covered by tests — it needs a real terminal.
 
 ## How it works
 
