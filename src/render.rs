@@ -3,7 +3,7 @@
 use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Span, Text};
 
-use crate::ascii;
+use crate::ascii::{self, luma_range as luma_range_of, stretch};
 use crate::source::Frame;
 
 /// How a frame should be turned into glyphs.
@@ -30,28 +30,10 @@ impl Default for Options {
     }
 }
 
-/// The darkest and brightest luma present in `frame`.
+/// The darkest and brightest luma present in `frame`. Frames are RGB24, so the
+/// stride is three.
 fn luma_range(frame: &Frame) -> (u8, u8) {
-    let mut lo = u8::MAX;
-    let mut hi = u8::MIN;
-    for px in frame.data.chunks_exact(3) {
-        let l = ascii::luma(px[0], px[1], px[2]);
-        lo = lo.min(l);
-        hi = hi.max(l);
-    }
-    (lo, hi)
-}
-
-/// Rescales `l` from `lo..=hi` onto the full 0..=255 range.
-#[inline]
-fn stretch(l: u8, lo: u8, hi: u8) -> u8 {
-    if hi <= lo {
-        // Flat frame - nothing to stretch, leave it alone rather than
-        // amplifying sensor noise into garbage.
-        return l;
-    }
-    let span = (hi - lo) as u32;
-    (((l.saturating_sub(lo)) as u32 * 255) / span).min(255) as u8
+    luma_range_of(&frame.data, 3)
 }
 
 /// Renders `frame` to terminal text.
@@ -159,20 +141,6 @@ mod tests {
             height,
             data,
         }
-    }
-
-    #[test]
-    fn stretch_expands_a_narrow_range() {
-        // A frame using only 100..=140 should still span the whole ramp.
-        assert_eq!(stretch(100, 100, 140), 0);
-        assert_eq!(stretch(140, 100, 140), 255);
-    }
-
-    #[test]
-    fn stretch_leaves_a_flat_frame_alone() {
-        // hi == lo must not divide by zero or blow the image out.
-        assert_eq!(stretch(70, 70, 70), 70);
-        assert_eq!(stretch(0, 200, 10), 0);
     }
 
     #[test]
