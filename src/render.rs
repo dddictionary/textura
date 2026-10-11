@@ -3,13 +3,13 @@
 use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Span, Text};
 
-use crate::ascii::{self, luma_range as luma_range_of, stretch};
+use crate::ascii::{self, luma_range as luma_range_of, stretch, Ramp};
 use crate::source::Frame;
 
 /// How a frame should be turned into glyphs.
 pub struct Options {
     /// Glyph ramp, dark to light.
-    pub ramp: Vec<u8>,
+    pub ramp: Ramp,
     /// Emit a 24-bit foreground colour per cell, sampled from the source.
     pub color: bool,
     /// Stretch each frame's luma range to fill the ramp.
@@ -23,7 +23,7 @@ pub struct Options {
 impl Default for Options {
     fn default() -> Self {
         Self {
-            ramp: ascii::RAMP.to_vec(),
+            ramp: Ramp::default(),
             color: false,
             normalize: true,
         }
@@ -54,7 +54,7 @@ pub fn render(frame: &Frame, opts: &Options) -> Text<'static> {
             for x in 0..frame.width {
                 let (r, g, b) = frame.pixel(x, y);
                 let l = stretch(ascii::luma(r, g, b), lo, hi);
-                row.push(ascii::glyph(l, &opts.ramp) as char);
+                row.push(opts.ramp.glyph(l));
             }
             lines.push(Line::from(row));
         }
@@ -75,7 +75,7 @@ fn color_line(frame: &Frame, y: u32, opts: &Options, lo: u8, hi: u8) -> Line<'st
     for x in 0..frame.width {
         let (r, g, b) = frame.pixel(x, y);
         let l = stretch(ascii::luma(r, g, b), lo, hi);
-        let ch = ascii::glyph(l, &opts.ramp) as char;
+        let ch = opts.ramp.glyph(l);
 
         match run_color {
             Some(c) if c == (r, g, b) => run.push(ch),
@@ -117,7 +117,7 @@ pub fn to_plain_string(frame: &Frame, opts: &Options) -> String {
         for x in 0..frame.width {
             let (r, g, b) = frame.pixel(x, y);
             let l = stretch(ascii::luma(r, g, b), lo, hi);
-            out.push(ascii::glyph(l, &opts.ramp) as char);
+            out.push(opts.ramp.glyph(l));
         }
         out.push('\n');
     }

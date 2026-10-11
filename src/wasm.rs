@@ -12,23 +12,14 @@
 
 use wasm_bindgen::prelude::*;
 
-use crate::ascii;
+use crate::ascii::{Ramp, PRESETS};
 use crate::layout;
 
-/// Named glyph ramps, so the page can offer a picker without hardcoding the
-/// strings in JavaScript.
-const PRESETS: &[(&str, &[u8])] = &[
-    ("classic", ascii::RAMP),
-    ("short", b" .:-=+*#%@"),
-    ("blocks", b" \xe2\x96\x91\xe2\x96\x92\xe2\x96\x93\xe2\x96\x88"),
-    ("minimal", b" .oO@"),
-    ("binary", b" 01"),
-];
 
 /// Converts frames to ASCII. Holds the ramp so it is not re-parsed per frame.
 #[wasm_bindgen]
 pub struct Converter {
-    ramp: Vec<u8>,
+    ramp: Ramp,
     normalize: bool,
 }
 
@@ -38,7 +29,7 @@ impl Converter {
     #[wasm_bindgen(constructor)]
     pub fn new() -> Converter {
         Converter {
-            ramp: ascii::RAMP.to_vec(),
+            ramp: Ramp::default(),
             normalize: true,
         }
     }
@@ -47,8 +38,8 @@ impl Converter {
     /// a stale page cannot break the render loop.
     #[wasm_bindgen(js_name = setPreset)]
     pub fn set_preset(&mut self, name: &str) {
-        if let Some((_, ramp)) = PRESETS.iter().find(|(n, _)| *n == name) {
-            self.ramp = ramp.to_vec();
+        if let Some(ramp) = Ramp::preset(name) {
+            self.ramp = ramp;
         }
     }
 
@@ -57,7 +48,7 @@ impl Converter {
     #[wasm_bindgen(js_name = setRamp)]
     pub fn set_ramp(&mut self, ramp: &str) {
         if !ramp.is_empty() {
-            self.ramp = ramp.as_bytes().to_vec();
+            self.ramp = Ramp::new(ramp);
         }
     }
 
@@ -70,7 +61,7 @@ impl Converter {
     /// Converts one RGBA frame - straight from `ctx.getImageData().data` - into
     /// newline-separated ASCII.
     pub fn render(&self, rgba: &[u8], width: u32, height: u32) -> String {
-        ascii::rgba_to_ascii(rgba, width, height, 4, &self.ramp, self.normalize)
+        crate::ascii::rgba_to_ascii(rgba, width, height, 4, &self.ramp, self.normalize)
     }
 }
 

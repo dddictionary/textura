@@ -15,6 +15,7 @@ use ratatui::crossterm::{
 };
 use ratatui::{prelude::*, widgets::Paragraph, Terminal};
 
+use textura::ascii::{Ramp, PRESETS};
 use textura::layout::{fit_grid, DEFAULT_CELL_ASPECT};
 use textura::render::{self, Options};
 use textura::source::{FrameSource, Source};
@@ -36,9 +37,15 @@ struct Args {
     #[arg(short, long, value_name = "FILE")]
     output: Option<PathBuf>,
 
-    /// Column count to use when writing to a file.
-    #[arg(long, default_value_t = 100, value_name = "COLS")]
-    width: u16,
+    /// Print one frame to stdout and exit, instead of opening the TUI. Handy
+    /// for piping, and for comparing ramps side by side.
+    #[arg(short, long)]
+    print: bool,
+
+    /// Column count for --print and --output. Defaults to the terminal width,
+    /// or 100 when stdout is not a terminal.
+    #[arg(long, value_name = "COLS")]
+    width: Option<u16>,
 
     /// Emit 24-bit colour per cell, sampled from the source.
     #[arg(short, long)]
@@ -48,9 +55,14 @@ struct Args {
     #[arg(long)]
     no_normalize: bool,
 
-    /// Custom glyph ramp, ordered dark to light.
-    #[arg(long, value_name = "GLYPHS")]
+    /// Glyph ramp: a preset name (see --list-ramps) or literal glyphs ordered
+    /// dark to light.
+    #[arg(long, value_name = "NAME|GLYPHS")]
     ramp: Option<String>,
+
+    /// List the built-in ramp presets and exit.
+    #[arg(long)]
+    list_ramps: bool,
 
     /// Camera capture resolution, e.g. 1280x720.
     #[arg(long, value_name = "WxH")]
@@ -77,6 +89,11 @@ fn parse_size(s: &str) -> Result<(u32, u32), String> {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
 
+    if args.list_ramps {
+        list_ramps();
+        return Ok(());
+    }
+
     let source = match (&args.camera, &args.input) {
         (Some(spec), _) => Source::Camera {
             spec: spec.clone(),
@@ -92,25 +109,55 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
+    // A bare name selects a preset; anything else is taken literally, so
+    // `--ramp " .:#"` still works.
+    let ramp = match args.ramp.as_deref() {
+        Some(spec) => Ramp::preset(spec).unwrap_or_else(|| Ramp::new(spec)),
+        None => Ramp::default(),
+    };
+
     let opts = Options {
-        ramp: args
-            .ramp
-            .as_ref()
-            .map(|r| r.as_bytes().to_vec())
-            .unwrap_or_else(|| textura::ascii::RAMP.to_vec()),
+        ramp,
         color: args.color,
         normalize: !args.no_normalize,
     };
 
-    if opts.ramp.is_empty() {
-        eprintln!("error: --ramp must contain at least one glyph");
-        std::process::exit(2);
-    }
+    // Fall back to the terminal width, then to a sane fixed width when output
+    // is redirected and there is no terminal to measure.
+    let width = args
+        .width
+        .or_else(|| terminal_size().ok().map(|(cols, _)| cols))
+        .unwrap_or(100);
 
-    match &args.output {
-        Some(path) => write_to_file(&source, &opts, args.width, args.cell_aspect, path),
-        None => run_tui(&source, &opts, args.cell_aspect),
+    match (&args.output, args.print) {
+        (Some(path), _) => {
+            let art = convert_once(&source, &opts, width, args.cell_aspect)?;
+            std::fs::write(path, &art)?;
+            eprintln!("Wrote {} lines to {}", art.lines().count(), path.display());
+            Ok(())
+        }
+        (None, true) => {
+            print!("{}", convert_once(&source, &opts, width, args.cell_aspect)?);
+            Ok(())
+        }
+        (None, false) => run_tui(&source, &opts, args.cell_aspect),
     }
+}
+
+/// Prints each preset with a luminance sweep, so the ramps can be compared at
+/// a glance rather than by reading glyph strings.
+fn list_ramps() {
+    let width = 48;
+    for (name, glyphs) in PRESETS {
+        let ramp = Ramp::new(glyphs);
+        let sweep: String = (0..width)
+            .map(|i| ramp.glyph((i * 255 / (width - 1)) as u8))
+            .collect();
+        println!("{name:>14}  {sweep}");
+    }
+    println!("\n{:>14}  dark to light. Use a name or literal glyphs:", "");
+    println!("{:>14}    textura --camera --ramp blocks", "");
+    println!("{:>14}    textura --camera --ramp ' .:-=+*#%@'", "");
 }
 
 /// Opens a source, turning ffmpeg's terse errors into something actionable.
@@ -133,14 +180,16 @@ fn open_source(source: &Source, dst: (u32, u32)) -> Result<FrameSource, Box<dyn 
     })
 }
 
-/// One-shot conversion: decode the first frame and write it out as text.
-fn write_to_file(
+/// One-shot conversion: decode the first frame and return it as text.
+///
+/// A still image is a one-frame video, so this covers images and the first
+/// frame of a clip or camera alike.
+fn convert_once(
     source: &Source,
     opts: &Options,
     width: u16,
     cell_aspect: f64,
-    path: &PathBuf,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<String, Box<dyn std::error::Error>> {
     // Opened at a provisional size; the real grid needs the source aspect,
     // which is only known once the stream is open.
     let mut src = open_source(source, (width as u32, width as u32))?;
@@ -152,14 +201,7 @@ fn write_to_file(
         .ok_or("no frames decoded")?
         .map_err(|e| format!("decode failed: {e}"))?;
 
-    std::fs::write(path, render::to_plain_string(&frame, opts))?;
-    println!(
-        "Wrote {}x{} ASCII to {}",
-        frame.width,
-        frame.height,
-        path.display()
-    );
-    Ok(())
+    Ok(render::to_plain_string(&frame, opts))
 }
 
 /// Restores the terminal. Safe to call more than once.
