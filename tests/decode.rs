@@ -7,11 +7,12 @@ use textura::ascii;
 use textura::source::{FrameSource, Source};
 
 fn to_ascii(frame: &textura::source::Frame) -> String {
+    let ramp = ascii::Ramp::default();
     let mut out = String::with_capacity(((frame.width + 1) * frame.height) as usize);
     for y in 0..frame.height {
         for x in 0..frame.width {
             let (r, g, b) = frame.pixel(x, y);
-            out.push(ascii::glyph(ascii::luma(r, g, b), ascii::RAMP) as char);
+            out.push(ramp.glyph(ascii::luma(r, g, b)));
         }
         out.push('\n');
     }

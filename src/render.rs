@@ -3,13 +3,13 @@
 use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Span, Text};
 
-use crate::ascii;
+use crate::ascii::{self, luma_range as luma_range_of, stretch, Ramp};
 use crate::source::Frame;
 
 /// How a frame should be turned into glyphs.
 pub struct Options {
     /// Glyph ramp, dark to light.
-    pub ramp: Vec<u8>,
+    pub ramp: Ramp,
     /// Emit a 24-bit foreground colour per cell, sampled from the source.
     pub color: bool,
     /// Stretch each frame's luma range to fill the ramp.
@@ -23,35 +23,17 @@ pub struct Options {
 impl Default for Options {
     fn default() -> Self {
         Self {
-            ramp: ascii::RAMP.to_vec(),
+            ramp: Ramp::default(),
             color: false,
             normalize: true,
         }
     }
 }
 
-/// The darkest and brightest luma present in `frame`.
+/// The darkest and brightest luma present in `frame`. Frames are RGB24, so the
+/// stride is three.
 fn luma_range(frame: &Frame) -> (u8, u8) {
-    let mut lo = u8::MAX;
-    let mut hi = u8::MIN;
-    for px in frame.data.chunks_exact(3) {
-        let l = ascii::luma(px[0], px[1], px[2]);
-        lo = lo.min(l);
-        hi = hi.max(l);
-    }
-    (lo, hi)
-}
-
-/// Rescales `l` from `lo..=hi` onto the full 0..=255 range.
-#[inline]
-fn stretch(l: u8, lo: u8, hi: u8) -> u8 {
-    if hi <= lo {
-        // Flat frame - nothing to stretch, leave it alone rather than
-        // amplifying sensor noise into garbage.
-        return l;
-    }
-    let span = (hi - lo) as u32;
-    (((l.saturating_sub(lo)) as u32 * 255) / span).min(255) as u8
+    luma_range_of(&frame.data, 3)
 }
 
 /// Renders `frame` to terminal text.
@@ -72,7 +54,7 @@ pub fn render(frame: &Frame, opts: &Options) -> Text<'static> {
             for x in 0..frame.width {
                 let (r, g, b) = frame.pixel(x, y);
                 let l = stretch(ascii::luma(r, g, b), lo, hi);
-                row.push(ascii::glyph(l, &opts.ramp) as char);
+                row.push(opts.ramp.glyph(l));
             }
             lines.push(Line::from(row));
         }
@@ -93,7 +75,7 @@ fn color_line(frame: &Frame, y: u32, opts: &Options, lo: u8, hi: u8) -> Line<'st
     for x in 0..frame.width {
         let (r, g, b) = frame.pixel(x, y);
         let l = stretch(ascii::luma(r, g, b), lo, hi);
-        let ch = ascii::glyph(l, &opts.ramp) as char;
+        let ch = opts.ramp.glyph(l);
 
         match run_color {
             Some(c) if c == (r, g, b) => run.push(ch),
@@ -135,7 +117,7 @@ pub fn to_plain_string(frame: &Frame, opts: &Options) -> String {
         for x in 0..frame.width {
             let (r, g, b) = frame.pixel(x, y);
             let l = stretch(ascii::luma(r, g, b), lo, hi);
-            out.push(ascii::glyph(l, &opts.ramp) as char);
+            out.push(opts.ramp.glyph(l));
         }
         out.push('\n');
     }
@@ -159,20 +141,6 @@ mod tests {
             height,
             data,
         }
-    }
-
-    #[test]
-    fn stretch_expands_a_narrow_range() {
-        // A frame using only 100..=140 should still span the whole ramp.
-        assert_eq!(stretch(100, 100, 140), 0);
-        assert_eq!(stretch(140, 100, 140), 255);
-    }
-
-    #[test]
-    fn stretch_leaves_a_flat_frame_alone() {
-        // hi == lo must not divide by zero or blow the image out.
-        assert_eq!(stretch(70, 70, 70), 70);
-        assert_eq!(stretch(0, 200, 10), 0);
     }
 
     #[test]

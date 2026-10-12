@@ -24,6 +24,12 @@
             clippy
             rust-analyzer
             pkg-config
+            # For the browser build. nixpkgs' rustc ships the
+            # wasm32-unknown-unknown std but *not* rust-lld, so the wasm linker
+            # has to come from the lld package. The bindgen CLI version must
+            # match the wasm-bindgen crate pinned in Cargo.toml.
+            wasm-bindgen-cli
+            lld
           ];
 
           buildInputs = with pkgs; [
@@ -32,6 +38,10 @@
 
           # bindgen needs libclang at runtime to parse the ffmpeg headers.
           LIBCLANG_PATH = "${pkgs.llvmPackages.libclang.lib}/lib";
+
+          # The wasm32 target defaults to `rust-lld`, which nixpkgs' rustc does
+          # not ship. Point it at lld's wasm frontend instead.
+          CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_LINKER = "wasm-ld";
 
           shellHook = ''
             echo "textura dev shell - rustc $(rustc --version | cut -d' ' -f2), ffmpeg $(ffmpeg -version | head -1 | cut -d' ' -f3)"
